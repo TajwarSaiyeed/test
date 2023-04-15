@@ -1,0 +1,114 @@
+const Invoice = require('../models/invoiceModel');
+const Item = require('../models/itemModel');
+const pdf = require('html-pdf');
+const fs = require('fs');
+const path = require('path');
+
+async function generateInvoices(items) {
+    var itemDataSet = [];
+    var uniqueSuppliers = [];
+    for (item of items) {
+        let itemData = await Item.findById(item);
+        itemDataSet.push(itemData);
+
+        if (!uniqueSuppliers.includes(itemData.supplier)) {
+            uniqueSuppliers.push(itemData.supplier);
+        }
+    }
+
+    console.log(uniqueSuppliers);
+    
+    for (supplier of uniqueSuppliers) {
+        let items = [];
+        itemDataSet.map((item) => {
+            if (item.supplier == supplier) {
+                items.push(item._id);
+            }
+        });
+
+        const invoice = new Invoice({
+            supplier,
+            items
+        });
+
+        await invoice.save(function (err) {
+            if (err) {
+                console.error(err);
+            }
+        });
+    }
+} 
+
+async function generatePdfFile(invoiceId) {
+    try {
+        const now = new Date();
+        var invoice = await Invoice.findById(invoiceId);
+        var filePath = path.join(__dirname, '../pdf/output/Invoice__' + invoice.supplier.replace(' ', '_') + '_' + now.getFullYear() + '-' + now.getMonth() + '-' + now.getDay() + '_' + Math.floor(Math.random() * 100000) + '.pdf');
+        var logoMap = fs.readFileSync(path.join(__dirname, '../pdf/logo.png'));
+        var logo = logoMap.toString('base64');
+        var html = fs.readFileSync(path.join(__dirname, '../pdf/template.html'), "utf8");
+        var header = fs.readFileSync(path.join(__dirname, '../pdf/template_header.html'), "utf8");
+        
+        html = html.replace('{{logo}}', logo);
+        header = header.replace('{{logo}}', logo);
+
+        //console.log(html);
+        var options = {
+            format: "A4",
+            orientation: "portrait",
+            margin: {
+                'top': '-20mm',
+                'left': '0mm',
+                'bottom': '0mm',
+                'right': '0mm'
+            },
+            header: {
+                height: '10mm',
+                contents: {
+                    first: header,
+                    default: ''
+                }
+            },
+            footer: {
+                height: "28mm",
+                contents: {
+                    default: '<span style="color: #444;">{{page}}</span>/<span>{{pages}}</span>'
+                }
+            }
+        }
+
+        var wait = true;
+        var promise = new Promise((resolve, reject) => {
+            setTimeout(() => {
+                if (!wait) { resolve() };
+            }, 3000);
+            setTimeout(() => {
+                if (!wait) { resolve() };
+            }, 6000);
+            setTimeout(() => {
+                if (!wait) { resolve() };
+            }, 9000);
+            setTimeout(() => {
+                if (!wait) { resolve() };
+            }, 12000);
+        });
+    
+        pdf.create(html, options).toFile(filePath, function(err, res) {            
+                if (err) {
+                    console.log(err);
+                }        
+                wait = false;
+            });
+        
+        await promise;
+
+        return filePath;
+    } catch (e) {
+        console.log(e.message);
+    }
+}
+
+module.exports = {
+    generateInvoices,
+    generatePdfFile
+}
